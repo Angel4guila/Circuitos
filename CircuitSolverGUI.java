@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 public class CircuitSolverGUI extends JFrame {
 
     // Colecciones del circuito: nodos y elementos
+    private Object lastAddedItem = null;
     private ArrayList<Node> nodes;
     private ArrayList<CircuitElement> elements;
     // Panel de dibujo del circuito
@@ -123,6 +124,9 @@ public class CircuitSolverGUI extends JFrame {
         gbc.gridy++;
         JButton clearButton = new JButton("Limpiar Circuito");
         manualPanel.add(clearButton, gbc);
+        gbc.gridy++;
+        JButton undoButton = new JButton("Deshacer Último");
+        manualPanel.add(undoButton, gbc);
         JPanel resultsPanel = new JPanel(new BorderLayout());
         resultsPanel.setBorder(new TitledBorder("Resultados"));
         outputArea = new JTextArea(15,30);
@@ -156,11 +160,60 @@ public class CircuitSolverGUI extends JFrame {
                     }
                     Node newNode = new Node(id, x, y);
                     nodes.add(newNode);
+                    lastAddedItem = newNode; // Guardar referencia del último nodo agregado
                     circuitPanel.repaint();
                     outputArea.append("Nodo " + id + " agregado en (" + x + "," + y + ")\n");
                 } catch(NumberFormatException ex){
                     JOptionPane.showMessageDialog(null, "Error en la entrada de datos para nodo.");
                 }
+            }
+        });
+
+        // Acción para deshacer último paso
+        undoButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (lastAddedItem == null) {
+                    JOptionPane.showMessageDialog(null, "No hay nada que deshacer.");
+                    return;
+                }
+                
+                if (lastAddedItem instanceof Node) {
+                    Node nodeToRemove = (Node) lastAddedItem;
+                    // Verificar si hay elementos conectados a este nodo
+                    boolean hasConnectedElements = false;
+                    for (CircuitElement elem : elements) {
+                        if (elem.node1.id == nodeToRemove.id || elem.node2.id == nodeToRemove.id) {
+                            hasConnectedElements = true;
+                            break;
+                        }
+                    }
+                    
+                    if (hasConnectedElements) {
+                        JOptionPane.showMessageDialog(null, 
+                            "No se puede eliminar el nodo " + nodeToRemove.id + 
+                            " porque tiene elementos conectados.");
+                        return;
+                    }
+                    
+                    nodes.remove(nodeToRemove);
+                    outputArea.append("Nodo " + nodeToRemove.id + " eliminado.\n");
+                    
+                } else if (lastAddedItem instanceof CircuitElement) {
+                    CircuitElement elemToRemove = (CircuitElement) lastAddedItem;
+                    elements.remove(elemToRemove);
+                    String tipo = "";
+                    if (elemToRemove instanceof Resistor) tipo = "Resistor";
+                    else if (elemToRemove instanceof VoltageSource) tipo = "Fuente de voltaje";
+                    else if (elemToRemove instanceof CurrentSource) tipo = "Fuente de corriente";
+                    else if (elemToRemove instanceof Cable) tipo = "Cable";
+                    
+                    outputArea.append(tipo + " entre N" + elemToRemove.node1.id + 
+                                    " y N" + elemToRemove.node2.id + " eliminado.\n");
+                }
+                
+                lastAddedItem = null;
+                circuitPanel.repaint();
             }
         });
 
@@ -192,7 +245,8 @@ public class CircuitSolverGUI extends JFrame {
                         JOptionPane.showMessageDialog(null, "Tipo de elemento inválido. Use R, V o I.");
                         return;
                     }
-                    elements.add(elem);
+                   elements.add(elem);
+                    lastAddedItem = elem; // Guardar referencia del último elemento agregado
                     circuitPanel.repaint();
                     outputArea.append("Elemento " + tipo + " agregado entre N" + node1Id + " y N" + node2Id + " con valor " + valor + "\n");
                 } catch(NumberFormatException ex){
@@ -209,6 +263,7 @@ public class CircuitSolverGUI extends JFrame {
                 int ret = chooser.showOpenDialog(CircuitSolverGUI.this);
                 if(ret == JFileChooser.APPROVE_OPTION) {
                     File file = chooser.getSelectedFile();
+                    lastAddedItem = null;
                     loadCircuitFromFile(file);
                 }
             }
